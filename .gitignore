@@ -8,3 +8,11 @@ wheels/
 
 # Virtual environments
 .venv
+
+# IDE's
+.vscode/
+.idea/
+
+# Source data
+data/
+notebooks/
