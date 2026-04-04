@@ -1,11 +1,14 @@
 import logging
 from pathlib import Path
 
+from utils.datatypes import ValidatedPath
+
 logger = logging.getLogger(__name__)
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
-def get_path(path: str) -> Path:
+
+def get_path(path: str) -> ValidatedPath:
     """Create full absolute path"""
     new_path = PROJECT_ROOT / path
 
@@ -14,4 +17,4 @@ def get_path(path: str) -> Path:
     else:
         logger.info("Absolute path: %s", new_path)
 
-    return new_path
+    return ValidatedPath(new_path)
