@@ -14,24 +14,33 @@ class AppConfig:
     def __init__(self, path: ValidatedPath = get_path(CONFIGFILE_PATH)):
         self.path: ValidatedPath = None
         self.config: dict = None
-        self.unsaved_config: dict = None
+        self.saved_config: dict = None
 
         self.read_config(path)
 
+    @property
+    def unsaved_config(self):
+        import copy
+
+        saved_copy = copy.deepcopy(self.saved_config)
+        current_copy = copy.deepcopy(self.config)
+        return DeepDiff(saved_copy, current_copy)
+
     class _Decorators(object):
         @classmethod
-        def unsaved_trigger(cls, func):
+        def current_changes_trigger(cls, func):
             """Decorator that automatically sets unsaved config"""
             @functools.wraps(func)
             def wrapper(self, *args, **kwargs) -> Any:
-                import copy
+                from copy import deepcopy
 
-                config_before = copy.deepcopy(self.config)
+                config_before = deepcopy(self.config)
                 result = func(self, *args, **kwargs)
-                config_after = copy.deepcopy(self.config)
+                config_after = deepcopy(self.config)
 
-                self.unsaved_config = DeepDiff(config_before, config_after)
-                logger.info(self.unsaved_config)
+                diff = DeepDiff(config_before, config_after)
+                if diff:
+                    logger.info(str(diff)[1:-1])
 
                 return result
             return wrapper
@@ -57,10 +66,11 @@ class AppConfig:
 
         self.path = path
         self.config = data
+        self.saved_config = self.config.copy()
         logger.info("Config set on path: %s", path)
 
     @_Decorators.return_config
-    @_Decorators.unsaved_trigger
+    @_Decorators.current_changes_trigger
     def add_new_setting(self, key: str, value: Any) -> Self:
         """Add new setting to config """
         if key in self.config.keys():
@@ -70,7 +80,7 @@ class AppConfig:
         self.config[key] = value
 
     @_Decorators.return_config
-    @_Decorators.unsaved_trigger
+    @_Decorators.current_changes_trigger
     def remove_setting(self, key: str) -> Self:
         """Remove setting from config"""
         if key not in self.config.keys():
@@ -80,7 +90,7 @@ class AppConfig:
         del self.config[key]
 
     @_Decorators.return_config
-    @_Decorators.unsaved_trigger
+    @_Decorators.current_changes_trigger
     def change_setting(self, key: str, value: Any = None, new_key: str = None) -> Self:
         """Change setting in config"""
         if key not in self.config.keys():
@@ -108,6 +118,6 @@ class AppConfig:
         except json.JSONDecodeError:
             logger.error("Wrong data to save")
 
-        self.unsaved_config = {}
+        self.saved_config = self.config.copy()
 
 appconfig = AppConfig()
