@@ -1,7 +1,7 @@
 import json
 import logging
 import functools
-from typing import Any
+from typing import Any, Self
 from deepdiff import DeepDiff
 
 from utils.correct_path import get_path
@@ -21,75 +21,84 @@ class AppConfig:
     class _Decorators(object):
         @classmethod
         def unsaved_trigger(cls, func):
-            """Decorator to automatically set unsaved config"""
+            """Decorator that automatically sets unsaved config"""
             @functools.wraps(func)
-            def wrapper(self, *args, **kwargs):
-                config_before = self.config.copy()
+            def wrapper(self, *args, **kwargs) -> Any:
+                import copy
+
+                config_before = copy.deepcopy(self.config)
                 result = func(self, *args, **kwargs)
-                config_after = self.config
+                config_after = copy.deepcopy(self.config)
 
                 self.unsaved_config = DeepDiff(config_before, config_after)
+                logger.info(self.unsaved_config)
 
                 return result
             return wrapper
 
-    def read_config(self, path: ValidatedPath = get_path(CONFIGFILE_PATH)) -> dict:
+        @classmethod
+        def return_config(cls, func):
+            """Decorator that automatically return self"""
+            @functools.wraps(func)
+            def wrapper(self, *args, **kwargs) -> Self:
+                func(self, *args, **kwargs)
+                return self
+            return wrapper
+
+    @_Decorators.return_config
+    def read_config(self, path: ValidatedPath = get_path(CONFIGFILE_PATH)) -> Self:
         """Load config from JSON file, also possible to change it during run"""
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.loads(f.read())
         except json.JSONDecodeError:
             logger.error("Wrong input from JSON file")
-            return self.config
+            return
 
         self.path = path
         self.config = data
         logger.info("Config set on path: %s", path)
-        return self.config
 
+    @_Decorators.return_config
     @_Decorators.unsaved_trigger
-    def add_new_setting(self, key: str, value: Any) -> dict:
+    def add_new_setting(self, key: str, value: Any) -> Self:
         """Add new setting to config """
         if key in self.config.keys():
             logger.error("Key '%s' is already exists", key)
-            return self.config
+            return
 
         self.config[key] = value
-        logger.info("New setting '%s' has been added", {key: value})
-        return self.config
 
+    @_Decorators.return_config
     @_Decorators.unsaved_trigger
-    def remove_setting(self, key: str) -> dict:
+    def remove_setting(self, key: str) -> Self:
         """Remove setting from config"""
         if key not in self.config.keys():
             logger.error("Key '%s' not in config", key)
-            return self.config
+            return
 
         del self.config[key]
-        logger.info("Setting '%s' has been deleted", key)
-        return self.config
 
+    @_Decorators.return_config
     @_Decorators.unsaved_trigger
-    def change_setting(self, key: str, value: Any = None, new_key: str = None) -> dict:
+    def change_setting(self, key: str, value: Any = None, new_key: str = None) -> Self:
         """Change setting in config"""
         if key not in self.config.keys():
             logger.error("Key '%s' not in config", key)
-            return self.config
+            return
         if new_key:
             new_value = value if value else self.config[key]
             self.config[new_key] = new_value
             del self.config[key]
-            logger.info("Key '%s' has been changed to '%s'", key, new_key)
         else:
             if not value:
                 logger.warning("Value '%s' cannot be None", key)
-                return self.config
+                return
             self.config[key] = value
-            logger.info("'%s' has been changed to '%s'", key, value)
 
-        return self.config
 
-    def save_config(self, path: ValidatedPath = None) -> dict:
+    @_Decorators.return_config
+    def save_config(self, path: ValidatedPath = None) -> Self:
         """Save config in JSON"""
         export_path = self.path if path is None else path
 
@@ -98,9 +107,7 @@ class AppConfig:
                 json.dump(self.config, f, indent=2)
         except json.JSONDecodeError:
             logger.error("Wrong data to save")
-            return self.config
 
         self.unsaved_config = {}
-        return self.config
 
 appconfig = AppConfig()
