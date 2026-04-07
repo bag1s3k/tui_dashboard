@@ -12,7 +12,7 @@ def logging_setup():
     )
 
     handler = RichHandler(
-        level=logging.DEBUG,
+        level=logging.INFO,
         rich_tracebacks=True,
         omit_repeated_times=False,
         markup=True
