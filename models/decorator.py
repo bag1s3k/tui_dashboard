@@ -6,49 +6,28 @@ from copy import deepcopy
 
 logger = logging.getLogger(__name__)
 
-class Chain:
-    @classmethod
-    def return_self(cls, func):
-        """Decorator that automatically return self"""
+def return_self(func):
+    """Decorator that automatically return self"""
 
-        @wraps(func)
-        def wrapper(self, *args, **kwargs) -> Self:
-            func(self, *args, **kwargs)
-            return self
+    @wraps(func)
+    def wrapper(self, *args, **kwargs) -> Self:
+        func(self, *args, **kwargs)
+        return self
 
-        return wrapper
+    return wrapper
 
-class Changes:
-    def __init__(self):
-        self._change: Any = None
-        self._saved_changes: Any = None
+def current_changes_trigger(func):
+    """Decorator that automatically sets current unsaved changes"""
 
-    @property
-    def change(self) -> Any:
-        return self._change
+    @wraps(func)
+    def wrapper(self, *args, **kwargs) -> Any:
+        before = deepcopy(self.change)
+        result = func(self, *args, **kwargs)
+        after = deepcopy(self.change)
 
-    @property
-    def unsaved_changes(self):
-        saved_copy = deepcopy(self._saved_changes)
-        current_copy = deepcopy(self._change)
-        return DeepDiff(saved_copy, current_copy)
+        diff = DeepDiff(before, after)
+        if diff:
+            logger.info(f"Changes detected: {str(diff)[1:-1]}")
 
-    @classmethod
-    def current_changes_trigger(cls, func):
-        """Decorator that automatically sets current unsaved changes"""
-
-        @wraps(func)
-        def wrapper(self, *args, **kwargs) -> Any:
-            before = deepcopy(self.change)
-            result = func(self, *args, **kwargs)
-            after = deepcopy(self.change)
-
-            diff = DeepDiff(before, after)
-            if diff:
-                logger.info(f"Changes detected: {str(diff)[1:-1]}")
-
-            return result
-        return wrapper
-
-class Decorators(Chain, Changes):
-    pass
+        return result
+    return wrapper
